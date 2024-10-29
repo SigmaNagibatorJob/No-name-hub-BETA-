@@ -1,7 +1,7 @@
 local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Orion/main/source"))()
 
 -- Создаем окно
-local Window = OrionLib:MakeWindow({Name = "No name Hub(BETA)", HidePremium = false, SaveConfig = true, ConfigFolder = "OrionConfig"})
+local Window = OrionLib:MakeWindow({Name = "No name Hub (BETA)", HidePremium = false, SaveConfig = true, ConfigFolder = "OrionConfig"})
 
 -- Вкладка Main
 local mainTab = Window:MakeTab({
@@ -17,6 +17,13 @@ local murderTab = Window:MakeTab({
     PremiumOnly = false
 })
 
+-- Вкладка Sheriff
+local sheriffTab = Window:MakeTab({
+    Name = "Sheriff",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
 -- Вкладка Server
 local serverTab = Window:MakeTab({
     Name = "Server",
@@ -28,27 +35,22 @@ local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
+-- Переменные для автофарма и ESP
 local autoFarmEnabled = false
+local espEnabled = false
 local itemPickupDistance = 10 -- Максимальное расстояние для сбора предметов
-local espEnabled = false -- Переменная для отслеживания состояния ESP
-local highlightColor = Color3.new(1, 0, 0) -- Цвет выделения для ESP
 
 -- Функция для автофарма
 function startAutoFarm()
     autoFarmEnabled = true
     while autoFarmEnabled do
-        wait(0.5) -- Задержка между итерациями
-
-        -- Находим все предметы в игре
+        wait(0.5)
         for _, item in ipairs(workspace:GetChildren()) do
             if item:IsA("Part") and item.Name == "Item" and (item.Position - humanoidRootPart.Position).magnitude <= itemPickupDistance then
-                -- Перемещаемся к предмету
                 humanoidRootPart.CFrame = CFrame.new(item.Position + Vector3.new(0, 2, 0))
-                wait(0.1) -- Небольшая задержка перед взаимодействием
-
-                -- Собираем предмет (если это необходимо, зависит от механики игры)
-                fireclickdetector(item:FindFirstChild("ClickDetector")) -- Попытка взаимодействия
-                wait(0.2) -- Задержка, чтобы избежать слишком быстрого взаимодействия
+                wait(0.1)
+                fireclickdetector(item:FindFirstChild("ClickDetector"))
+                wait(0.2)
             end
         end
     end
@@ -58,23 +60,17 @@ function stopAutoFarm()
     autoFarmEnabled = false
 end
 
--- Функция для создания ESP
-local function createESP(player)
-    if not player.Character then return end -- Проверка на наличие персонажа
-    local highlight = Instance.new("Highlight")
-    highlight.Parent = player.Character
-    highlight.Adornee = player.Character
-    highlight.FillColor = highlightColor -- Цвет выделения
-    highlight.FillTransparency = 0.5
-end
-
--- Функция для включения/выключения ESP
-function toggleESP(state)
+-- Функция для переключения ESP
+local function toggleESP(state)
     espEnabled = state
     for _, target in ipairs(game.Players:GetPlayers()) do
         if target.Character then
             if state then
-                createESP(target)
+                local highlight = Instance.new("Highlight")
+                highlight.Parent = target.Character
+                highlight.Adornee = target.Character
+                highlight.FillColor = Color3.new(1, 0, 0) -- Красный цвет
+                highlight.FillTransparency = 0.5
             else
                 if target.Character:FindFirstChild("Highlight") then
                     target.Character.Highlight:Destroy()
@@ -94,7 +90,7 @@ mainTab:AddSlider({
     Increment = 1,
     ValueName = "WalkSpeed",
     Callback = function(value)
-        game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = value
+        player.Character.Humanoid.WalkSpeed = value
     end
 })
 
@@ -117,14 +113,6 @@ mainTab:AddToggle({
     Default = false,
     Callback = function(state)
         toggleESP(state)
-        if state then
-            -- Создаем ESP для всех игроков, если ESP включен
-            for _, target in ipairs(game.Players:GetPlayers()) do
-                if target.Character then
-                    createESP(target)
-                end
-            end
-        end
     end
 })
 
@@ -159,26 +147,16 @@ mainTab:AddButton({
 
 -- Функция для автоматического убийства всех игроков, если вы убийца
 local function killAllPlayers()
-    local player = game.Players.LocalPlayer
-    local character = player.Character or player.CharacterAdded:Wait()
-    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-
-    -- Проверка на роль убийцы
     if player.Backpack:FindFirstChild("Knife") or character:FindFirstChild("Knife") then
-        -- Достаем нож
         local knife = player.Backpack:FindFirstChild("Knife") or character:FindFirstChild("Knife")
         if knife then
             knife.Parent = character
         end
 
-        -- Телепортируем каждого игрока к себе по очереди и атакуем
         for _, target in ipairs(game.Players:GetPlayers()) do
             if target ~= player and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-                -- Телепортируем игрока к себе
                 target.Character.HumanoidRootPart.CFrame = humanoidRootPart.CFrame + Vector3.new(0, 2, 0)
-
-                -- Атакуем
-                wait(0.2)  -- Небольшая задержка для каждой атаки
+                wait(0.2)
                 mouse1click()
             end
         end
@@ -200,11 +178,25 @@ murderTab:AddButton({
     end
 })
 
+-- Функция для сбора пистолета
+sheriffTab:AddButton({
+    Name = "Grab Gun",
+    Callback = function()
+        for _, item in ipairs(workspace:GetChildren()) do
+            if item:IsA("Tool") and item.Name == "Gun" then
+                item.Handle.CFrame = humanoidRootPart.CFrame
+                return
+            end
+        end
+        OrionLib:MakeNotification({Name = "Ошибка", Content = "Пистолет не найден!", Time = 5})
+    end
+})
+
 -- Копирование ID сервера
 serverTab:AddButton({
     Name = "Copy Server ID",
     Callback = function()
-        setclipboard(game.JobId) -- Копируем ID сервера в буфер обмена
+        setclipboard(game.JobId)
         OrionLib:MakeNotification({
             Name = "Сервер ID",
             Content = "ID сервера скопирован в буфер обмена!",
@@ -219,14 +211,8 @@ serverTab:AddTextbox({
     Name = "Server ID",
     PlaceholderText = "Введите Server ID",
     Callback = function(value)
-        -- Функция телепортации на сервер по ID
-        local function teleportToServer(id)
-            local TeleportService = game:GetService("TeleportService")
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, id, player) -- Телепортируем на сервер с указанным ID
-        end
-
-        -- Телепортация по ID
-        teleportToServer(value)
+        local TeleportService = game:GetService("TeleportService")
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, value, player)
     end
 })
 
@@ -234,9 +220,9 @@ serverTab:AddTextbox({
 serverTab:AddButton({
     Name = "Teleport to Server",
     Callback = function()
-        local id = getgenv().serverId or "" -- Копируем введенный ID
+        local id = getgenv().serverId or ""
         if id ~= "" then
-            teleportToServer(id) -- Выполняем телепортацию
+            teleportToServer(id)
         else
             OrionLib:MakeNotification({
                 Name = "Ошибка",
@@ -248,7 +234,52 @@ serverTab:AddButton({
     end
 })
 
--- Запуск интерфейса
-OrionLib:Init()
+-- Функция для серверного хопа
+local function serverHop()
+    local TeleportService = game:GetService("TeleportService")
+    TeleportService:Teleport(game.PlaceId, player)
+end
 
--- Создаем ESP для игроков, которые присоединяются после активации
+-- Кнопка "Server Hop" в Server
+serverTab:AddButton({
+    Name = "Server Hop",
+    Callback = function()
+        serverHop()
+    end
+})
+
+-- Функция для поиска маленького сервера
+local function findSmallServer()
+    local success, message = pcall(function()
+        local TeleportService = game:GetService("TeleportService")
+        local placeId = game.PlaceId
+        local servers = TeleportService:GetPrivateServers(placeId)
+
+        for _, server in ipairs(servers) do
+            if server.PlayerCount < 5 then -- Измените количество игроков по своему усмотрению
+                TeleportService:TeleportToPlaceInstance(placeId, server.Id, player)
+                return
+            end
+        end
+    end)
+
+    if not success then
+        OrionLib:MakeNotification({
+            Name = "Ошибка",
+            Content = "Не удалось найти маленький сервер.",
+            Image = "rbxassetid://4483345998",
+            Time = 5
+        })
+    end
+end
+
+-- Кнопка "Small Server" в Server
+serverTab:AddButton({
+    Name = "Small Server",
+    Callback = function()
+        findSmallServer()
+    end
+})
+
+-- Запуск интерфейса
+OrionLib:Init
