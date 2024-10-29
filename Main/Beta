@@ -1,0 +1,254 @@
+local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Orion/main/source"))()
+
+-- Создаем окно
+local Window = OrionLib:MakeWindow({Name = "No name Hub(BETA)", HidePremium = false, SaveConfig = true, ConfigFolder = "OrionConfig"})
+
+-- Вкладка Main
+local mainTab = Window:MakeTab({
+    Name = "Main",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+-- Вкладка Murder
+local murderTab = Window:MakeTab({
+    Name = "Murder",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+-- Вкладка Server
+local serverTab = Window:MakeTab({
+    Name = "Server",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+local autoFarmEnabled = false
+local itemPickupDistance = 10 -- Максимальное расстояние для сбора предметов
+local espEnabled = false -- Переменная для отслеживания состояния ESP
+local highlightColor = Color3.new(1, 0, 0) -- Цвет выделения для ESP
+
+-- Функция для автофарма
+function startAutoFarm()
+    autoFarmEnabled = true
+    while autoFarmEnabled do
+        wait(0.5) -- Задержка между итерациями
+
+        -- Находим все предметы в игре
+        for _, item in ipairs(workspace:GetChildren()) do
+            if item:IsA("Part") and item.Name == "Item" and (item.Position - humanoidRootPart.Position).magnitude <= itemPickupDistance then
+                -- Перемещаемся к предмету
+                humanoidRootPart.CFrame = CFrame.new(item.Position + Vector3.new(0, 2, 0))
+                wait(0.1) -- Небольшая задержка перед взаимодействием
+
+                -- Собираем предмет (если это необходимо, зависит от механики игры)
+                fireclickdetector(item:FindFirstChild("ClickDetector")) -- Попытка взаимодействия
+                wait(0.2) -- Задержка, чтобы избежать слишком быстрого взаимодействия
+            end
+        end
+    end
+end
+
+function stopAutoFarm()
+    autoFarmEnabled = false
+end
+
+-- Функция для создания ESP
+local function createESP(player)
+    if not player.Character then return end -- Проверка на наличие персонажа
+    local highlight = Instance.new("Highlight")
+    highlight.Parent = player.Character
+    highlight.Adornee = player.Character
+    highlight.FillColor = highlightColor -- Цвет выделения
+    highlight.FillTransparency = 0.5
+end
+
+-- Функция для включения/выключения ESP
+function toggleESP(state)
+    espEnabled = state
+    for _, target in ipairs(game.Players:GetPlayers()) do
+        if target.Character then
+            if state then
+                createESP(target)
+            else
+                if target.Character:FindFirstChild("Highlight") then
+                    target.Character.Highlight:Destroy()
+                end
+            end
+        end
+    end
+end
+
+-- Слайдер для изменения скорости в Main
+mainTab:AddSlider({
+    Name = "Speed",
+    Min = 0,
+    Max = 500,
+    Default = 16,
+    Color = Color3.fromRGB(255, 0, 0),
+    Increment = 1,
+    ValueName = "WalkSpeed",
+    Callback = function(value)
+        game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = value
+    end
+})
+
+-- Кнопка "On/Off" для автофарма
+mainTab:AddToggle({
+    Name = "Auto Farm On/Off",
+    Default = false,
+    Callback = function(state)
+        if state then
+            startAutoFarm()
+        else
+            stopAutoFarm()
+        end
+    end
+})
+
+-- Кнопка "On/Off" для ESP
+mainTab:AddToggle({
+    Name = "ESP On/Off",
+    Default = false,
+    Callback = function(state)
+        toggleESP(state)
+        if state then
+            -- Создаем ESP для всех игроков, если ESP включен
+            for _, target in ipairs(game.Players:GetPlayers()) do
+                if target.Character then
+                    createESP(target)
+                end
+            end
+        end
+    end
+})
+
+-- Кнопки для перемещения игрока
+mainTab:AddButton({
+    Name = "Move Forward",
+    Callback = function()
+        humanoidRootPart.CFrame = humanoidRootPart.CFrame + humanoidRootPart.CFrame.LookVector * 10
+    end
+})
+
+mainTab:AddButton({
+    Name = "Move Backward",
+    Callback = function()
+        humanoidRootPart.CFrame = humanoidRootPart.CFrame - humanoidRootPart.CFrame.LookVector * 10
+    end
+})
+
+mainTab:AddButton({
+    Name = "Move Left",
+    Callback = function()
+        humanoidRootPart.CFrame = humanoidRootPart.CFrame - humanoidRootPart.CFrame.RightVector * 10
+    end
+})
+
+mainTab:AddButton({
+    Name = "Move Right",
+    Callback = function()
+        humanoidRootPart.CFrame = humanoidRootPart.CFrame + humanoidRootPart.CFrame.RightVector * 10
+    end
+})
+
+-- Функция для автоматического убийства всех игроков, если вы убийца
+local function killAllPlayers()
+    local player = game.Players.LocalPlayer
+    local character = player.Character or player.CharacterAdded:Wait()
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+    -- Проверка на роль убийцы
+    if player.Backpack:FindFirstChild("Knife") or character:FindFirstChild("Knife") then
+        -- Достаем нож
+        local knife = player.Backpack:FindFirstChild("Knife") or character:FindFirstChild("Knife")
+        if knife then
+            knife.Parent = character
+        end
+
+        -- Телепортируем каждого игрока к себе по очереди и атакуем
+        for _, target in ipairs(game.Players:GetPlayers()) do
+            if target ~= player and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                -- Телепортируем игрока к себе
+                target.Character.HumanoidRootPart.CFrame = humanoidRootPart.CFrame + Vector3.new(0, 2, 0)
+
+                -- Атакуем
+                wait(0.2)  -- Небольшая задержка для каждой атаки
+                mouse1click()
+            end
+        end
+    else
+        OrionLib:MakeNotification({
+            Name = "Ошибка",
+            Content = "Вы не убийца!",
+            Image = "rbxassetid://4483345998",
+            Time = 5
+        })
+    end
+end
+
+-- Кнопка "Kill All" в Murder
+murderTab:AddButton({
+    Name = "Kill All",
+    Callback = function()
+        killAllPlayers()
+    end
+})
+
+-- Копирование ID сервера
+serverTab:AddButton({
+    Name = "Copy Server ID",
+    Callback = function()
+        setclipboard(game.JobId) -- Копируем ID сервера в буфер обмена
+        OrionLib:MakeNotification({
+            Name = "Сервер ID",
+            Content = "ID сервера скопирован в буфер обмена!",
+            Image = "rbxassetid://4483345998",
+            Time = 5
+        })
+    end
+})
+
+-- Ввод ID сервера
+serverTab:AddTextbox({
+    Name = "Server ID",
+    PlaceholderText = "Введите Server ID",
+    Callback = function(value)
+        -- Функция телепортации на сервер по ID
+        local function teleportToServer(id)
+            local TeleportService = game:GetService("TeleportService")
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, id, player) -- Телепортируем на сервер с указанным ID
+        end
+
+        -- Телепортация по ID
+        teleportToServer(value)
+    end
+})
+
+-- Кнопка для телепортации на сервер по ID
+serverTab:AddButton({
+    Name = "Teleport to Server",
+    Callback = function()
+        local id = getgenv().serverId or "" -- Копируем введенный ID
+        if id ~= "" then
+            teleportToServer(id) -- Выполняем телепортацию
+        else
+            OrionLib:MakeNotification({
+                Name = "Ошибка",
+                Content = "Введите действительный ID сервера.",
+                Image = "rbxassetid://4483345998",
+                Time = 5
+            })
+        end
+    end
+})
+
+-- Запуск интерфейса
+OrionLib:Init()
+
+-- Создаем ESP для игроков, которые присоединяются после активации
